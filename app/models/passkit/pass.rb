@@ -41,7 +41,8 @@ module Passkit
       end
     end
 
-    def instance
+    def instance(arg = nil)
+      return @instance = arg unless arg.nil?
       @instance ||= klass.constantize.new(generator)
     end
 
