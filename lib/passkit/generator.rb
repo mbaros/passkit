@@ -2,7 +2,7 @@ require "zip"
 
 module Passkit
   class Generator
-    TMP_FOLDER = Rails.root.join("tmp/passkit").freeze
+    TMP_FOLDER = Rails.root.join("passkit_data/generated").freeze
 
     def initialize(pass)
       @pass = pass
