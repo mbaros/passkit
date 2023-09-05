@@ -95,16 +95,29 @@ module Passkit
 
     # :nocov:
     def sign_manifest
-      p12_certificate = OpenSSL::PKCS12.new(File.read(CERTIFICATE), CERTIFICATE_PASSWORD)
-      intermediate_certificate = OpenSSL::X509::Certificate.new(File.read(INTERMEDIATE_CERTIFICATE))
-
       flag = OpenSSL::PKCS7::DETACHED | OpenSSL::PKCS7::BINARY
-      signed = OpenSSL::PKCS7.sign(p12_certificate.certificate,
-        p12_certificate.key, File.read(@manifest_url),
-        [intermediate_certificate], flag)
+
+      # Check if PKCS12 is supported and environment variables for PEM are not set
+      if OpenSSL::PKCS12.respond_to?(:new) && (ENV['PASSKIT_CERTIFICATE_PEM'].nil? || ENV['PASSKIT_PRIVATE_KEY_PEM'].nil?)
+        p12_certificate = OpenSSL::PKCS12.new(File.read(CERTIFICATE), CERTIFICATE_PASSWORD)
+        intermediate_certificate = OpenSSL::X509::Certificate.new(File.read(INTERMEDIATE_CERTIFICATE))
+        signed = OpenSSL::PKCS7.sign(p12_certificate.certificate, p12_certificate.key, File.read(@manifest_url), [intermediate_certificate], flag)
+
+        # If PKCS12 is not supported or PEM environment variables are set, use the PEM method
+      else
+        certificate_path = ENV['PASSKIT_CERTIFICATE_PEM']
+        private_key_path = ENV['PASSKIT_PRIVATE_KEY_PEM']
+        certificate_content = File.read(certificate_path)
+        private_key_content = File.read(private_key_path)
+        certificate = OpenSSL::X509::Certificate.new(certificate_content)
+        private_key = OpenSSL::PKey.read(private_key_content, CERTIFICATE_PASSWORD)  # use password if the key is protected
+        intermediate_certificate_content = File.read(INTERMEDIATE_CERTIFICATE)
+        intermediate_certificate = OpenSSL::X509::Certificate.new(intermediate_certificate_content)
+        signed = OpenSSL::PKCS7.sign(certificate, private_key, File.read(@manifest_url), [intermediate_certificate], flag)
+      end
 
       @signature_url = @temporary_path.join("signature")
-      File.open(@signature_url, "w") { |f| f.syswrite signed.to_der }
+      File.open(@signature_url, "wb") { |f| f.write(signed.to_der) }
     end
 
     # :nocov:
